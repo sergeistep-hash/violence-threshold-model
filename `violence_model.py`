@@ -1,0 +1,95 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.stats import logistic
+
+# Core model functions from manuscript
+def violence_impulse(potential, threshold, k=1.2):
+    """Basic threshold release model."""
+    return k * max(0.0, potential - threshold)
+
+def accommodative_impulse(potential, threshold, k=1.2, flatten=0.2):
+    """Damped variant for exhaustion (de guerre lasse)."""
+    return k * flatten * max(0.0, potential - threshold)
+
+# Sigmoid potential buildup (as referenced in manuscript)
+def potential_buildup(t, rate=0.1, capacity=10.0):
+    """Sigmoid accumulation of potential over time."""
+    return capacity / (1 + np.exp(-rate * (t - 5)))
+
+# Multi-scale simulation
+def multi_scale_simulation(time_steps=100, scale_factors=[1.0, 5.0, 10.0, 25.0]):
+    """Simulate across scales: physics → cellular → birth → war."""
+    t = np.linspace(0, 20, time_steps)
+    results = {}
+    
+    for i, scale in enumerate(scale_factors):
+        potential = potential_buildup(t) * scale
+        threshold = 8.0 * scale  # Scale-invariant threshold
+        
+        impulse = violence_impulse(potential, threshold, k=1.2)
+        damped = accommodative_impulse(potential, threshold, k=1.2, flatten=0.3)
+        
+        results[f'scale_{scale}'] = {'t': t, 'impulse': impulse, 'damped': damped}
+    
+    return results
+
+# Generate figures for manuscript
+def plot_threshold_curves():
+    """Figure 1: Multi-panel threshold curves."""
+    sim = multi_scale_simulation()
+    
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    axes = axes.ravel()
+    
+    scales = ['scale_1.0', 'scale_5.0', 'scale_10.0', 'scale_25.0']
+    labels = ['Physics (snap)', 'Cellular (ATP)', 'Birth trauma', 'War']
+    
+    for i, scale in enumerate(scales):
+        ax = axes[i]
+        data = sim[scale]
+        ax.plot(data['t'], data['impulse'], 'r-', label='Impulse', linewidth=2)
+        ax.plot(data['t'], data['damped'], 'b--', label='Accommodative', linewidth=2)
+        ax.axhline(y=0, color='k', alpha=0.3)
+        ax.set_title(labels[i], fontsize=12)
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig('threshold_curves.png', dpi=300, bbox_inches='tight')
+    plt.close()
+
+def plot_density_decay():
+    """Figure 2: Threshold decay under crowding."""
+    t = np.linspace(0, 20, 200)
+    base_potential = potential_buildup(t, rate=0.15)
+    
+    # Crowding lowers threshold over time
+    threshold_decay = 8.0 * np.exp(-0.05 * t)  # Density effect
+    
+    impulse = violence_impulse(base_potential*1.5, threshold_decay)
+    
+    plt.figure(figsize=(10, 6))
+    plt.plot(t, base_potential*1.5, 'g-', label='Potential (crowding)', alpha=0.7)
+    plt.plot(t, threshold_decay, 'orange', label='Threshold decay', linewidth=2)
+    plt.plot(t, impulse, 'r-', label='Violence impulse', linewidth=2)
+    plt.axhline(y=0, color='k', alpha=0.3)
+    plt.xlabel('Time')
+    plt.ylabel('Magnitude')
+    plt.title('Crowding-Induced Threshold Decay')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.savefig('density_decay.png', dpi=300, bbox_inches='tight')
+    plt.close()
+
+if __name__ == "__main__":
+    print("Violence Threshold Model")
+    print("========================")
+    
+    # Test functions
+    print("Test impulse:", violence_impulse(10, 5, 1.2))  # Should be 6.0
+    print("Test damped:", accommodative_impulse(10, 5, 1.2, 0.2))  # Should be 1.2
+    
+    # Generate manuscript figures
+    plot_threshold_curves()
+    plot_density_decay()
+    print("Figures saved: threshold_curves.png, density_decay.png")
